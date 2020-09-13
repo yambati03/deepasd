@@ -2,11 +2,13 @@ from nilearn import input_data, datasets, connectome
 import pandas as pd
 import numpy as np
 import os
+import sys
+import math
 import scipy.io as sio
 
 #Define folder structure
 root_folder = "C:\\Users\\Yashas\\Documents\\ABIDE\\"
-data_folder = "D:\\abide_processed\\ABIDEII-EMC_1\\ABIDEII-EMC_1\\"
+data_folder = "D:\\abide_processed\\ABIDEII-GU_1\\ABIDEII-GU_1\\"
 phenotypic_file = root_folder + "ABIDEII_Composite_Phenotypic.csv"
 
 #Compute functional connectivity matrix of a single subject
@@ -124,3 +126,44 @@ def get_saved_networks(subject_ids):
         all_networks.append(matrix)
 
     return all_networks
+
+def compute_edge_features_from_scores(scores, subject_list):
+    """
+        scores            : list of phenotypic information to be used to construct the affinity graph
+        subject_list      : list of subject IDs
+    return:
+        graph             : edge feature matrix of the population graph (num_subjects x num_subjects x scores)
+    """
+
+    num_nodes = len(subject_list)
+    num_scores = len(scores)
+    graph = np.zeros((num_nodes, num_nodes, num_scores))
+
+    for i, l in enumerate(scores):
+        label_dict = get_phenotypic(subject_list, l)
+
+        # quantitative phenotypic scores
+        if l in ['AGE_AT_SCAN ', 'FIQ', 'VIQ', 'PIQ']:
+            for k in range(num_nodes):
+                for j in range(k + 1, num_nodes):
+                    try:
+                        max_val = abs(max(float(label_dict[int(subject_list[k])]), float(label_dict[int(subject_list[j])])))
+                        sim = 1 - (abs(float(label_dict[int(subject_list[k])]) - float(label_dict[int(subject_list[j])])) / max_val)
+                        graph[k, j, i]  = sim
+                        graph[j, k, i]  = sim
+                    except ValueError:  # missing label
+                        pass
+        # categorical phenotypic scores
+        else:
+            for k in range(num_nodes):
+                for j in range(k + 1, num_nodes):
+                    if label_dict[int(subject_list[k])] == label_dict[int(subject_list[j])]:
+                        graph[k, j, i] = 1
+                        graph[j, k, i] = 1
+
+    return graph
+
+
+
+#edge_features = compute_edge_features_from_scores(['SITE_ID', 'SEX', 'FIQ', 'EYE_STATUS_AT_SCAN', 'HANDEDNESS_CATEGORY', 'AGE_AT_SCAN '], get_subject_ids())
+#print(edge_features)
